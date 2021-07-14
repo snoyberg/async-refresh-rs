@@ -64,14 +64,16 @@ impl Builder {
     */
 
     /// Construct a [Refreshed] value from the given initialization function, which may fail.
+    ///
+    /// The closure is provided `false` on the first call, and `true` on subsequent refresh calls.
     pub async fn try_build<Fut, MkFut, T, E>(&self, mut mk_fut: MkFut) -> Result<Refreshed<T>, E>
     where
         Fut: Future<Output = Result<T, E>> + Send + 'static,
-        MkFut: FnMut() -> Fut + Send + 'static,
+        MkFut: FnMut(bool) -> Fut + Send + 'static,
         T: Send + Sync + 'static,
         E: Debug,
     {
-        let init = mk_fut().await?;
+        let init = mk_fut(false).await?;
         let refresh = Refreshed {
             inner: Arc::new(RwLock::new(Arc::new(init))),
         };
@@ -88,7 +90,7 @@ impl Builder {
                     Some(arc) => arc,
                 };
 
-                let fut = mk_fut(); // without this, we need a Sync bound on Fut
+                let fut = mk_fut(true); // without this, we need a Sync bound on Fut
                 match fut.await {
                     Err(e) => log::error!("{:?}", e), // FIXME generalize
                     Ok(t) => *arc.write() = Arc::new(t),
@@ -111,7 +113,7 @@ mod tests {
     #[tokio::test]
     async fn simple_no_refresh() {
         let x = refreshed()
-            .try_build(|| async { Ok::<_, Infallible>(42_u32) })
+            .try_build(|_| async { Ok::<_, Infallible>(42_u32) })
             .await
             .unwrap();
         assert_eq!(*x.get(), 42);
@@ -121,7 +123,7 @@ mod tests {
     async fn refreshes() {
         let counter = Arc::new(RwLock::new(0u32));
         let counter_clone = counter.clone();
-        let mk_fut = move || {
+        let mk_fut = move |_| {
             let counter_clone = counter_clone.clone();
             async move {
                 let mut lock = counter_clone.write();
@@ -146,7 +148,7 @@ mod tests {
     async fn stops_refreshing() {
         let counter = Arc::new(RwLock::new(0u32));
         let counter_clone = counter.clone();
-        let mk_fut = move || {
+        let mk_fut = move |_| {
             let counter_clone = counter_clone.clone();
             async move {
                 let mut lock = counter_clone.write();
