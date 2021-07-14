@@ -5,11 +5,30 @@
 use std::{fmt::Debug, future::Future, sync::Arc};
 
 use parking_lot::RwLock;
-use tokio::time::{sleep, Duration};
+use tokio::time::{sleep, Duration, Instant};
 
 /// A value which will be refreshed asynchronously.
-pub struct Refreshed<T> {
-    inner: Arc<RwLock<Arc<T>>>,
+pub struct Refreshed<T, E> {
+    inner: Arc<RwLock<RefreshState<T, E>>>,
+}
+
+pub struct RefreshState<T, E> {
+    /// The most recently updated value.
+    pub value: Arc<T>,
+    /// The timestamp when the most recent value was updated.
+    updated: Instant,
+    /// The error message, if present, from the last attempted refresh.
+    last_error: Option<Arc<E>>,
+}
+
+impl<T, E> Clone for RefreshState<T, E> {
+    fn clone(&self) -> Self {
+        RefreshState {
+            value: self.value.clone(),
+            updated: self.updated,
+            last_error: self.last_error.clone(),
+        }
+    }
 }
 
 /// Create an initial [Builder] value with defaults.
@@ -17,9 +36,14 @@ pub fn refreshed() -> Builder {
     Builder::default()
 }
 
-impl<T> Refreshed<T> {
-    /// Get the current value
+impl<T, E> Refreshed<T, E> {
+    /// Get the most recent value
     pub fn get(&self) -> Arc<T> {
+        self.inner.read().value.clone()
+    }
+
+    /// Get the full state
+    pub fn get_state(&self) -> RefreshState<T, E> {
         self.inner.read().clone()
     }
 }
@@ -66,16 +90,20 @@ impl Builder {
     /// Construct a [Refreshed] value from the given initialization function, which may fail.
     ///
     /// The closure is provided `false` on the first call, and `true` on subsequent refresh calls.
-    pub async fn try_build<Fut, MkFut, T, E>(&self, mut mk_fut: MkFut) -> Result<Refreshed<T>, E>
+    pub async fn try_build<Fut, MkFut, T, E>(&self, mut mk_fut: MkFut) -> Result<Refreshed<T, E>, E>
     where
         Fut: Future<Output = Result<T, E>> + Send + 'static,
         MkFut: FnMut(bool) -> Fut + Send + 'static,
         T: Send + Sync + 'static,
-        E: Debug,
+        E: Debug + Send + Sync + 'static,
     {
-        let init = mk_fut(false).await?;
+        let init = RefreshState {
+            value: Arc::new(mk_fut(false).await?),
+            updated: Instant::now(),
+            last_error: None,
+        };
         let refresh = Refreshed {
-            inner: Arc::new(RwLock::new(Arc::new(init))),
+            inner: Arc::new(RwLock::new(init)),
         };
         let weak = Arc::downgrade(&refresh.inner);
         let duration = self.duration;
@@ -91,8 +119,16 @@ impl Builder {
                 };
 
                 match mk_fut(true).await {
-                    Err(e) => log::error!("{:?}", e), // FIXME generalize
-                    Ok(t) => *arc.write() = Arc::new(t),
+                    Err(e) => {
+                        log::error!("{:?}", e); // FIXME generalize
+                        arc.write().last_error = Some(Arc::new(e));
+                    }
+                    Ok(t) => {
+                        let mut lock = arc.write();
+                        lock.value = Arc::new(t);
+                        lock.updated = Instant::now();
+                        lock.last_error = None;
+                    }
                 }
             }
         });
