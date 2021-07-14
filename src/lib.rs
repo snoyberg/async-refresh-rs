@@ -90,8 +90,7 @@ impl Builder {
                     Some(arc) => arc,
                 };
 
-                let fut = mk_fut(true); // without this, we need a Sync bound on Fut
-                match fut.await {
+                match mk_fut(true).await {
                     Err(e) => log::error!("{:?}", e), // FIXME generalize
                     Ok(t) => *arc.write() = Arc::new(t),
                 }
