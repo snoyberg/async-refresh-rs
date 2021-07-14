@@ -2,7 +2,7 @@
 //!
 //! See [README.md](https://github.com/snoyberg/async-refresh-rs#readme)
 
-use std::{fmt::Debug, future::Future, marker::PhantomData, sync::Arc};
+use std::{convert::Infallible, fmt::Debug, future::Future, marker::PhantomData, sync::Arc};
 
 use parking_lot::RwLock;
 use tokio::time::{sleep, Duration, Instant};
@@ -99,17 +99,6 @@ where
         self
     }
 
-    /*
-    /// Construct a [Refreshed] value from the given initialization function
-    pub async fn build<Fut, T>(self, fut: Fut) -> Refreshed<T>
-    where
-        Fut: Future<Output=T> + Clone + Send + 'static,
-        T: Send + Sync + 'static,
-    {
-
-    }
-    */
-
     /// Construct a [Refreshed] value from the given initialization function, which may fail.
     ///
     /// The closure is provided `false` on the first call, and `true` on subsequent refresh calls.
@@ -159,6 +148,34 @@ where
         });
         Ok(refresh)
     }
+}
+
+impl<T> Builder<T, Infallible>
+where
+    T: Send + Sync + 'static,
+{
+    /// Construct a [Refreshed] value from the given initialization function
+    pub async fn build<Fut, MkFut>(&self, mut mk_fut: MkFut) -> Refreshed<T, Infallible>
+    where
+        Fut: Future<Output = T> + Send + 'static,
+        MkFut: FnMut(bool) -> Fut + Send + 'static,
+    {
+        let res = self
+            .try_build(move |is_refresh| {
+                let fut = mk_fut(is_refresh);
+                async move {
+                    let t = fut.await;
+                    Ok::<_, Infallible>(t)
+                }
+            })
+            .await;
+
+        absurd(res)
+    }
+}
+
+fn absurd<T>(res: Result<T, Infallible>) -> T {
+    res.expect("absurd!")
 }
 
 impl<T, E> Builder<T, E>
@@ -271,5 +288,11 @@ mod tests {
             assert_eq!(*x.get(), *counter.read());
             assert_eq!(*x.get(), *success.read());
         }
+    }
+
+    #[tokio::test]
+    async fn simple_build() {
+        let x = Refreshed::builder().build(|_| async { 42_u32 }).await;
+        assert_eq!(*x.get(), 42);
     }
 }
