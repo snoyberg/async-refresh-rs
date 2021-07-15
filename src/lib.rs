@@ -121,13 +121,11 @@ where
         let error = self.error.clone();
         let exit = self.exit.clone();
         tokio::spawn(async move {
+            let _exit = Dropper(Some(|| exit()));
             loop {
                 sleep(duration).await;
                 let arc = match weak.upgrade() {
-                    None => {
-                        exit();
-                        break;
-                    }
+                    None => break,
                     Some(arc) => arc,
                 };
 
@@ -147,6 +145,17 @@ where
             }
         });
         Ok(refresh)
+    }
+}
+
+/// Helper type which runs the provided function when dropped.
+struct Dropper<F: FnOnce()>(Option<F>);
+
+impl<F: FnOnce()> Drop for Dropper<F> {
+    fn drop(&mut self) {
+        if let Some(f) = self.0.take() {
+            f()
+        }
     }
 }
 
@@ -234,6 +243,8 @@ mod tests {
 
     #[tokio::test]
     async fn stops_refreshing() {
+        let exited = Arc::new(RwLock::new(false));
+        let exited_clone = exited.clone();
         let counter = Arc::new(RwLock::new(0u32));
         let counter_clone = counter.clone();
         let mk_fut = move |_| {
@@ -247,10 +258,12 @@ mod tests {
         let duration = Duration::from_millis(10);
         let x = Refreshed::builder()
             .duration(duration)
+            .exit(move || *exited_clone.write() = true)
             .try_build(mk_fut)
             .await
             .unwrap();
         assert_eq!(*x.get(), 1);
+        assert_eq!(*exited.read(), false);
         sleep(duration).await;
         std::mem::drop(x);
         let val = *counter.read();
@@ -258,6 +271,7 @@ mod tests {
             sleep(duration).await;
             assert_eq!(val, *counter.read());
         }
+        assert_eq!(*exited.read(), true);
     }
 
     #[tokio::test]
@@ -294,5 +308,29 @@ mod tests {
     async fn simple_build() {
         let x = Refreshed::builder().build(|_| async { 42_u32 }).await;
         assert_eq!(*x.get(), 42);
+    }
+
+    #[tokio::test]
+    async fn exit_on_panic() {
+        let exited = Arc::new(RwLock::new(false));
+        let exited_clone = exited.clone();
+        let mk_fut = move |is_refresh| async move {
+            if is_refresh {
+                panic!("Don't panic!");
+            } else {
+                ()
+            }
+        };
+        let duration = Duration::from_millis(10);
+        let x = Refreshed::builder()
+            .duration(duration)
+            .exit(move || *exited_clone.write() = true)
+            .build(mk_fut)
+            .await;
+        assert_eq!(*exited.read(), false);
+        sleep(duration).await;
+        sleep(duration).await;
+        assert_eq!(*exited.read(), true);
+        assert_eq!(x.get_state().last_error, None);
     }
 }
