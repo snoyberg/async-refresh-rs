@@ -12,6 +12,14 @@ pub struct Refreshed<T, E> {
     inner: Arc<RwLock<RefreshState<T, E>>>,
 }
 
+impl<T, E> Clone for Refreshed<T, E> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
 pub struct RefreshState<T, E> {
     /// The most recently updated value.
     pub value: Arc<T>,
