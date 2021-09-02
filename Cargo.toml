@@ -3,8 +3,13 @@ name = "async-refresh"
 version = "0.1.0"
 authors = ["Michael Snoyman <michael@snoyman.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Create values that refresh automatically and asynchronously after a given duration."
+readme = "README.md"
+homepage = "https://github.com/snoyberg/async-refresh-rs"
+repository = "https://github.com/snoyberg/async-refresh-rs"
+license = "MIT"
+keywords = ["async", "tokio"]
+categories = ["asynchronous", "caching", "concurrency", "rust-patterns"]
 
 [dependencies]
 parking_lot = "0.11"
@@ -12,4 +17,4 @@ log = "0.4"
 tokio = { version = "1", features = ["time", "rt"] }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

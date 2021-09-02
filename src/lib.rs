@@ -1,6 +1,4 @@
-//! # async-refresh
-//!
-//! See [README.md](https://github.com/snoyberg/async-refresh-rs#readme)
+#![doc = include_str!("../README.md")]
 
 use std::{convert::Infallible, fmt::Debug, future::Future, marker::PhantomData, sync::Arc};
 
@@ -20,7 +18,8 @@ impl<T, E> Clone for Refreshed<T, E> {
     }
 }
 
-pub struct RefreshState<T, E> {
+/// The internal state of a [Refreshed].
+struct RefreshState<T, E> {
     /// The most recently updated value.
     pub value: Arc<T>,
     /// The timestamp when the most recent value was updated.
@@ -50,8 +49,21 @@ impl<T, E> Refreshed<T, E> {
         self.inner.read().value.clone()
     }
 
+    /// Get the timestamp of the most recent successful update
+    pub fn get_updated(&self) -> Instant {
+        self.inner.read().updated
+    }
+
+    /// The error message, if present, from the last attempted refresh.
+    ///
+    /// Note that on each successful refresh, this is reset to `None`.
+    pub fn get_last_error(&self) -> Option<Arc<E>> {
+        self.inner.read().last_error.clone()
+    }
+
+    #[cfg(test)]
     /// Get the full state
-    pub fn get_state(&self) -> RefreshState<T, E> {
+    fn get_state(&self) -> RefreshState<T, E> {
         self.inner.read().clone()
     }
 }

@@ -1,0 +1,4 @@
+{"rule":"UPPERCASE_SENTENCE_START","sentence":"^\\Qasync-refresh\\E$"}
+{"rule":"EN_A_VS_AN","sentence":"^\\QValues are available via an \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q.\\E$"}
+{"rule":"EN_A_VS_AN","sentence":"^\\QCreate a new \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q value using \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q\nProvide parameters on what to do when updating\nUse the \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q or \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q methods to produce a new \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q value that will regularly be called asynchronously\nUse the \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q method on the \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q to get the current value inside an \\E(?:Dummy|Ina|Jimmy-)[0-9]+$"}
+{"rule":"EN_A_VS_AN","sentence":"^\\QInternally, \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q uses an \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q, so cloning is safe and cheap.\\E$"}
