@@ -44,7 +44,7 @@ async fn main() {
 
 The above code will produce output the looks like:
 
-```
+```ignore
 Created a new Refreshed, value is: now == SystemTime { intervals: 132750230547424477 }, is_refresh == false
 Got a new time: now == SystemTime { intervals: 132750230548504204 }, is_refresh == true
 Got a new time: now == SystemTime { intervals: 132750230549594570 }, is_refresh == true
